@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Dloizides.Jobs.EntityFrameworkCore/Dloizides.Jobs.EntityFrameworkCore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Dloizides.Jobs.EntityFrameworkCore.Tests/Dloizides.Jobs.EntityFrameworkCore.Tests.csproj" />
+  </Folder>
+  <Project Path="../Dloizides.Jobs/src/Dloizides.Jobs/Dloizides.Jobs.csproj" />
+</Solution>

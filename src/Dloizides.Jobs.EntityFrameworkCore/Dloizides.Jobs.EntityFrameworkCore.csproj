@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Multi-target like the core package so the net8 straggler (AMLService, net8/EF8) can adopt the
+         EF store in Phase 2. TargetFrameworks overrides the single inherited target. -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>Dloizides.Jobs.EntityFrameworkCore</RootNamespace>
+    <PackageId>Dloizides.Jobs.EntityFrameworkCore</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Dloizides.Jobs\src\Dloizides.Jobs\Dloizides.Jobs.csproj" />
+  </ItemGroup>
+
+  <!--
+    Provider-agnostic base EF only, never a concrete provider: a consumer brings its own Npgsql/SQLite.
+    The store's compare-and-set uses ExecuteUpdateAsync (EF7+) and the single-flight partial unique index
+    uses HasFilter — both provider-neutral. EF version tracks the TFM: net10 -> EF 9.0.6, net8 -> EF 8.0.x
+    floor for the one net8 straggler, so it never drags an EF major onto a net8 consumer.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.6" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.11" Condition="'$(TargetFramework)' == 'net8.0'" />
+  </ItemGroup>
+
+</Project>
