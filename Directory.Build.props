@@ -14,14 +14,14 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageTags>background-jobs;efcore;entity-framework;postgres;jsonb;single-flight;compare-and-set;checkpoint</PackageTags>
+    <PackageTags>background-jobs;efcore;entity-framework;postgres;jsonb;single-flight;compare-and-set;checkpoint;listen-notify;realtime</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <Description>Entity Framework Core store for Dloizides.Jobs: JobRun mapping (jsonb Checkpoint/Progress), the single-flight partial unique index, and the compare-and-set ExecuteUpdate transitions that make reclaim-vs-complete a benign no-op instead of a poll-killing throw.</Description>
+    <Description>Entity Framework Core store for Dloizides.Jobs: JobRun mapping (jsonb Checkpoint/Progress), the single-flight partial unique index, and the compare-and-set ExecuteUpdate transitions that make reclaim-vs-complete a benign no-op instead of a poll-killing throw. Includes the Postgres LISTEN/NOTIFY status backplane for cross-pod real-time PUSH (no new infra).</Description>
 
     <!-- Versioning -->
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
 
     <!-- NuGet settings -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>

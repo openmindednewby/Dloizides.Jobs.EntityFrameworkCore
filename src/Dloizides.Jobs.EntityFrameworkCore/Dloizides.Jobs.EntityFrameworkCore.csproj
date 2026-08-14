@@ -24,4 +24,16 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.11" Condition="'$(TargetFramework)' == 'net8.0'" />
   </ItemGroup>
 
+  <!--
+    Npgsql (the raw ADO driver, NOT the EF provider) backs the Postgres LISTEN/NOTIFY status backplane —
+    LISTEN/NOTIFY has no provider-agnostic EF surface, so the concrete driver is required here. This is the
+    one concrete-provider dependency in an otherwise provider-neutral store; it is inert unless a consumer
+    selects Jobs:Status:Backplane=Postgres. In this estate every deployment is already on Postgres, so the
+    transitive reference costs nothing a consumer was not already carrying. Versions track the TFM.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="9.0.2" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageReference Include="Npgsql" Version="8.0.6" Condition="'$(TargetFramework)' == 'net8.0'" />
+  </ItemGroup>
+
 </Project>

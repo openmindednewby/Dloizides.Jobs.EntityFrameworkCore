@@ -1,4 +1,5 @@
 using Dloizides.Jobs.Abstractions;
+using Dloizides.Jobs.Backplane;
 using Dloizides.Jobs.EntityFrameworkCore.Tests.Support;
 using Dloizides.Jobs.Model;
 using Dloizides.Jobs.Runtime;
@@ -26,7 +27,9 @@ public sealed class CheckpointRoundTripTests
         // built from the stored checkpoint string.
         var scopes = harness.Provider.GetRequiredService<IServiceScopeFactory>();
         var time = harness.Provider.GetRequiredService<TimeProvider>();
-        var context = new JobContext(scopes, runId, "reader", run.Argument, run.Checkpoint, time);
+        var context = new JobContext(
+            scopes, CheckpointingJob.JobName, runId, "reader", run.Argument, run.Checkpoint, time,
+            NullJobStatusBackplane.Instance, logger: null);
 
         var loaded = context.LoadCheckpoint<DemoState>();
         loaded.ShouldBe(new DemoState("importing", 45));
