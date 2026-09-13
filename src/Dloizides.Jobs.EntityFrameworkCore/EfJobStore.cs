@@ -36,7 +36,7 @@ public sealed class EfJobStore<TContext> : IJobStore
         ArgumentNullException.ThrowIfNull(run);
         var now = _time.GetUtcNow();
 
-        var occupying = await FindOccupyingRunAsync(run.JobName, cancellationToken).ConfigureAwait(false);
+        var occupying = await FindSlotOccupantAsync(run, cancellationToken).ConfigureAwait(false);
         if (occupying is not null)
         {
             if (IsLeaseLive(occupying, now))
@@ -57,7 +57,7 @@ public sealed class EfJobStore<TContext> : IJobStore
             // Lost the single-flight race: another replica's insert committed first. The index — not the
             // pre-read — is what made that safe. Detach our rejected row and report the winner.
             _db.Entry(run).State = EntityState.Detached;
-            var winner = await FindOccupyingRunAsync(run.JobName, cancellationToken).ConfigureAwait(false);
+            var winner = await FindSlotOccupantAsync(run, cancellationToken).ConfigureAwait(false);
             return winner is not null ? JobEnqueueResult.AlreadyRunning(winner) : JobEnqueueResult.Queued(run);
         }
 
@@ -65,6 +65,8 @@ public sealed class EfJobStore<TContext> : IJobStore
     }
 
     /// <inheritdoc />
+    /// <remarks>For a per-argument job this is the newest occupier across ALL its arguments; the enqueue path
+    /// checks the run's own (job, key) slot instead.</remarks>
     public Task<JobRun?> FindOccupyingRunAsync(string jobName, CancellationToken cancellationToken) =>
         Runs.AsNoTracking()
             .Where(r => r.JobName == jobName && (r.Outcome == JobRunOutcomes.Queued || r.Outcome == JobRunOutcomes.Running))
@@ -182,6 +184,36 @@ public sealed class EfJobStore<TContext> : IJobStore
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
         return runs;
+    }
+
+    /// <summary>
+    /// The occupier of THIS run's slot. Default mapping: any unfinished run of the job (the pre-1.2.0 query,
+    /// unchanged). Per-argument mapping: an unfinished run with the same (JobName, SingleFlightKey). A non-empty
+    /// key on a model without the per-argument mapping is refused rather than silently collapsed to global.
+    /// </summary>
+    private Task<JobRun?> FindSlotOccupantAsync(JobRun run, CancellationToken cancellationToken)
+    {
+        var keyMapped = _db.Model.FindEntityType(typeof(JobRun))?.FindProperty(nameof(JobRun.SingleFlightKey)) is not null;
+        if (!keyMapped)
+        {
+            if (!string.IsNullOrEmpty(run.SingleFlightKey))
+            {
+                throw new InvalidOperationException(
+                    $"Job '{run.JobName}' is SingleFlightScope.PerArgument, but the DbContext maps JobRun without "
+                    + "the per-argument single-flight index. Call ApplyJobRunConfiguration(isNpgsql, "
+                    + "perArgumentSingleFlight: true) in OnModelCreating and add a migration.");
+            }
+
+            return FindOccupyingRunAsync(run.JobName, cancellationToken);
+        }
+
+        var jobName = run.JobName;
+        var key = run.SingleFlightKey;
+        return Runs.AsNoTracking()
+            .Where(r => r.JobName == jobName && r.SingleFlightKey == key
+                && (r.Outcome == JobRunOutcomes.Queued || r.Outcome == JobRunOutcomes.Running))
+            .OrderByDescending(r => r.TriggeredAt)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private async Task<bool> RunOwnedUpdateAsync(

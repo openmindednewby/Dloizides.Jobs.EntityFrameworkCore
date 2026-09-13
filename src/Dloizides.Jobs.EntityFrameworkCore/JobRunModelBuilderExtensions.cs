@@ -34,4 +34,18 @@ public static class JobRunModelBuilderExtensions
         modelBuilder.ApplyConfiguration(new JobRunEntityConfiguration(isNpgsql));
         return modelBuilder;
     }
+
+    /// <summary>
+    /// Apply the mapping with an explicit single-flight shape. Pass <paramref name="perArgumentSingleFlight"/>
+    /// = true to map <see cref="JobRun.SingleFlightKey"/> and key the single-flight index on
+    /// (<c>JobName</c>, <c>SingleFlightKey</c>), required before any job declares
+    /// <see cref="SingleFlightScope.PerArgument"/>. Changes the schema: add a migration.
+    /// </summary>
+    public static ModelBuilder ApplyJobRunConfiguration(
+        this ModelBuilder modelBuilder, bool isNpgsql, bool perArgumentSingleFlight)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+        modelBuilder.ApplyConfiguration(new JobRunEntityConfiguration(isNpgsql, perArgumentSingleFlight));
+        return modelBuilder;
+    }
 }
