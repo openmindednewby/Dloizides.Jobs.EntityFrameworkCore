@@ -49,6 +49,23 @@ public sealed class JobStatusEtaAndPhaseTests
     }
 
     [Fact]
+    public async Task Status_WhenRunningInAPhase_BasesEtaOnThePhaseStart()
+    {
+        // AC-J3: the rate is measured from when the current phase opened, not from the run start.
+        using var harness = TestHarness.Create(start: T0);
+        var phases = new[]
+        {
+            new JobPhaseSpan("fetch", T0.AddHours(-2), T0.AddHours(-1)),
+            new JobPhaseSpan("persist", T0.AddHours(-1)),
+        };
+        await SeedRunningAsync(harness, done: 50, total: 100, startedAt: T0.AddHours(-2), phases);
+
+        var status = await GetStatusAsync(harness, SimpleJob.JobName);
+
+        status.EstimatedCompletion.ShouldBe(T0.AddHours(1)); // the run start would give T0 + 2h
+    }
+
+    [Fact]
     public async Task Status_WhenRunningWithoutTotal_HasNoEta()
     {
         // AC-J3
@@ -90,7 +107,8 @@ public sealed class JobStatusEtaAndPhaseTests
         return status;
     }
 
-    private static Task SeedRunningAsync(TestHarness harness, long done, long total, DateTimeOffset startedAt)
+    private static Task SeedRunningAsync(
+        TestHarness harness, long done, long total, DateTimeOffset startedAt, IReadOnlyList<JobPhaseSpan>? phases = null)
     {
         var now = harness.Time.GetUtcNow();
         return harness.SeedAsync(new JobRun
@@ -103,7 +121,10 @@ public sealed class JobStatusEtaAndPhaseTests
             Outcome = JobRunOutcomes.Running,
             ClaimedBy = "other-pod",
             LeaseExpiresAt = now.AddHours(1),
-            Progress = JobJson.Serialize(new ProgressSnapshot("persist", done, total, now)),
+            Progress = JobJson.Serialize(new ProgressSnapshot("persist", done, total, now)
+            {
+                Phases = phases ?? Array.Empty<JobPhaseSpan>(),
+            }),
         });
     }
 }

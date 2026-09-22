@@ -1,6 +1,7 @@
 using Dloizides.Jobs.Abstractions;
 using Dloizides.Jobs.EntityFrameworkCore.Tests.Support;
 using Dloizides.Jobs.Model;
+using Dloizides.Jobs.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -52,5 +53,47 @@ public sealed class ResumeAfterReclaimTests
         afterB!.Outcome.ShouldBe(JobRunOutcomes.Completed);
         afterB.StartedAt.ShouldBe(afterA.StartedAt); // StartedAt preserved across the reclaim
         afterB.ClaimedBy.ShouldBeNull(); // lease released on completion
+    }
+
+    [Fact]
+    public async Task ReclaimedRun_ReloadsEarlierPhasesFromProgress_AndCountsDowntimeInTheOpenPhase()
+    {
+        var t0 = DateTimeOffset.Parse("2026-09-22T10:00:00Z");
+        using var harness = TestHarness.Create(start: t0, extraJobs: jobs => jobs.AddJob<PhasedJob>());
+        var runStart = t0.AddHours(-1);
+        var fetchStart = t0.AddMinutes(-30);
+
+        // A dead owner left the run mid-"fetch": an earlier "load" phase closed, "fetch" open, lease lapsed.
+        await harness.SeedAsync(new JobRun
+        {
+            JobName = PhasedJob.JobName,
+            TriggerSource = JobTriggerSources.Manual,
+            TriggeredBy = "tester",
+            TriggeredAt = runStart,
+            StartedAt = runStart,
+            Outcome = JobRunOutcomes.Running,
+            ClaimedBy = "dead-pod",
+            LeaseExpiresAt = t0.AddMinutes(-5),
+            Progress = JobJson.Serialize(new ProgressSnapshot("fetch", 10, 100, fetchStart)
+            {
+                Phases = new[]
+                {
+                    new JobPhaseSpan("load", runStart, fetchStart),
+                    new JobPhaseSpan("fetch", fetchStart),
+                },
+            }),
+        });
+
+        (await harness.NewRunner().RunOnceAsync(CancellationToken.None)).ShouldBeTrue();
+
+        var status = await harness.InScopeAsync(sp =>
+            sp.GetRequiredService<IJobStatusQuery>().GetAsync(PhasedJob.JobName, default));
+        status.ShouldNotBeNull();
+        status.Phases.Select(p => p.Phase).ShouldBe(new[] { "load", "fetch", "persist" });
+        status.Phases[0].Duration.ShouldBe(TimeSpan.FromMinutes(30));
+        status.Phases[1].StartedAt.ShouldBe(fetchStart);
+        // The 30 min the run sat unowned count inside the open "fetch" phase, plus the 10 min it then ran.
+        status.Phases[1].Duration.ShouldBe(TimeSpan.FromMinutes(30) + PhasedJob.FetchFor);
+        status.Phases[2].Duration.ShouldBe(PhasedJob.PersistFor);
     }
 }

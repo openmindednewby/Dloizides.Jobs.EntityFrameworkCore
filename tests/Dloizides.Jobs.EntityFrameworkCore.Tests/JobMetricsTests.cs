@@ -87,6 +87,36 @@ public sealed class JobMetricsTests
         capture.Latest(JobMetricNames.Stale, "nightly").ShouldBe(1d);
     }
 
+    [Fact]
+    public void RecordRunStarted_AfterACompletedRun_ResetsProgressToZero()
+    {
+        var service = NewServiceName();
+        using var capture = new MeterCapture(service);
+        using var metrics = new JobMetrics(Options.Create(new JobsOptions { ServiceName = service }));
+        metrics.RecordRunStarted("nightly");
+        metrics.RecordRunFinished("nightly", JobRunOutcomes.Completed, null, DateTimeOffset.UnixEpoch);
+        capture.Latest(JobMetricNames.ProgressRatio, "nightly").ShouldBe(1d);
+
+        metrics.RecordRunStarted("nightly");
+
+        capture.Latest(JobMetricNames.ProgressRatio, "nightly").ShouldBe(0d);
+    }
+
+    [Fact]
+    public void RecordLastSuccess_WhenOlderThanARecordedCompletion_NeverMovesBackwards()
+    {
+        var service = NewServiceName();
+        using var capture = new MeterCapture(service);
+        using var metrics = new JobMetrics(Options.Create(new JobsOptions { ServiceName = service }));
+        var completedAt = DateTimeOffset.UnixEpoch.AddDays(2);
+
+        metrics.RecordRunFinished("nightly", JobRunOutcomes.Completed, null, completedAt);
+        metrics.RecordLastSuccess("nightly", completedAt.AddDays(-1));
+
+        capture.Latest(JobMetricNames.LastSuccessTimestampSeconds, "nightly")
+            .ShouldBe(completedAt.ToUnixTimeSeconds());
+    }
+
     private static string NewServiceName() => $"svc-{Guid.NewGuid():N}";
 
     private static TestHarness CreateHarness(string service) =>
