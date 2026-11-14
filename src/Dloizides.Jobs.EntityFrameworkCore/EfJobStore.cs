@@ -219,7 +219,11 @@ public sealed class EfJobStore<TContext> : IJobStore
     private async Task<bool> RunOwnedUpdateAsync(
         Guid runId,
         string owner,
+#if NET10_0_OR_GREATER
+        Action<UpdateSettersBuilder<JobRun>> set,
+#else
         Expression<Func<SetPropertyCalls<JobRun>, SetPropertyCalls<JobRun>>> set,
+#endif
         CancellationToken cancellationToken)
     {
         RequireRelational();
